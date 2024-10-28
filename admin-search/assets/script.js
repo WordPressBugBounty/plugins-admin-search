@@ -436,7 +436,9 @@ function admin_search_modal( args ) {
 		}
 
 		// Set global state to open
-		admin_search_open = true;
+		setTimeout( function() {
+			admin_search_open = true;
+		}, 1 );
 	}
 
 	return true;
@@ -457,9 +459,11 @@ jQuery( document ).ready( function( $ ) {
 	// If clicking on anything other than a toggle (or the modal itself), close the admin-search modal
 	$( document ).on( 'click', function( event ) {
 		if ( ! $( event.target ).is( '#wp-admin-bar-admin-search-toggle, #wp-admin-bar-admin-search-toggle *' ) ) {
-			admin_search_modal( {
-				close : true
-			} );
+			if ( admin_search_open ) {
+				admin_search_modal( {
+					close : true
+				} );
+			}
 		}
 	} );
 

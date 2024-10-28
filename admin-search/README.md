@@ -3,9 +3,9 @@ Contributors: andrewstichbury
 Donate link: https://www.buymeacoffee.com/andrewstichbury
 Tags: advanced, admin, search
 Requires at least: 4.9.2
-Tested up to: 6.6.1
+Tested up to: 6.7
 Requires PHP: 5.2
-Stable tag: 1.4.0
+Stable tag: 1.4.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -111,6 +111,11 @@ Modify the search results after a search has initiated
 	}, 10, 2 );
 
 == Changelog ==
+
+= 1.4.1 =
+* Tested up to 6.7
+* Added a filter hook to add taxonomies to the searchable fields. This can be hooked into using `admin_search_taxonomies`, this hook has two arguments: `$taxonomies` (a list of taxonomies being searched, this is empty initially) and `$post_type` (returns the current post type being searched so you can optionally apply the filter to a specific post type). Searching taxonomies significantly delays the return of results, it is not recommended you use this unless you're willing to wait for your results.
+* Fixed issue with javascript function toggle instantly closing search box after opening
 
 = 1.4.0 =
 * New Feature: Introducing search suggestions! Now, whenever you search using a term with 9 or more characters and it returns results, it will be added to a database. The more you search that term, the higher it will rank. When you start typing 3 or more characters into the search box, autocomplete will display if it matches a term in the database, hit the right arrow key to apply it. This feature is disabled by default, go to Settings > Admin Search to enable it

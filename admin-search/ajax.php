@@ -6,27 +6,27 @@ function admin_search_convert_date_str(  $str = ''  ) {
 
 	$r = array();
 	$days = array(
-		__( 'Monday' ),
-		__( 'Tuesday' ),
-		__( 'Wednesday' ),
-		__( 'Thursday' ),
-		__( 'Friday' ),
-		__( 'Saturday' ),
-		__( 'Sunday' )
+		__( 'Monday', 'admin-search' ),
+		__( 'Tuesday', 'admin-search' ),
+		__( 'Wednesday', 'admin-search' ),
+		__( 'Thursday', 'admin-search' ),
+		__( 'Friday', 'admin-search' ),
+		__( 'Saturday', 'admin-search' ),
+		__( 'Sunday', 'admin-search' )
 	);
 	$months = array(
-		__( 'January' ),
-		__( 'February' ),
-		__( 'March' ),
-		__( 'April' ),
-		__( 'May' ),
-		__( 'June' ),
-		__( 'July' ),
-		__( 'August' ),
-		__( 'September' ),
-		__( 'October' ),
-		__( 'November' ),
-		__( 'December' )
+		__( 'January', 'admin-search' ),
+		__( 'February', 'admin-search' ),
+		__( 'March', 'admin-search' ),
+		__( 'April', 'admin-search' ),
+		__( 'May', 'admin-search' ),
+		__( 'June', 'admin-search' ),
+		__( 'July', 'admin-search' ),
+		__( 'August', 'admin-search' ),
+		__( 'September', 'admin-search' ),
+		__( 'October', 'admin-search' ),
+		__( 'November', 'admin-search' ),
+		__( 'December', 'admin-search' )
 	);
 
 	switch ( $str ) {
@@ -174,12 +174,13 @@ function admin_search_prepare_query(  $table, $field, $s  ) {
 /*
  *	Add 'as_s' item to WP_Query and handle it
  */
-function admin_search_extend_query(  $where, $wp_query  ) {
+function admin_search_extend_query( $where, $wp_query ) {
 
 	global $wpdb;
 
 	// Only modify this filter if 'as_s' is used in the WP_Query call
 	if ( $s = $wp_query -> get( 'as_s' ) ) {
+
 		$default_fields = array( 'post_title', 'post_name', 'post_excerpt', 'post_content' );
 
 		// Apply filters to search fields
@@ -190,7 +191,7 @@ function admin_search_extend_query(  $where, $wp_query  ) {
 			$fields = $default_fields;
 		}
 
-		// Build WHERE query
+		// Build WHERE query for post fields
 		$where .= ' AND (';
 
 		foreach ( $fields as $i => $field ) {
@@ -204,7 +205,7 @@ function admin_search_extend_query(  $where, $wp_query  ) {
 		// Apply filters to meta queries
 		$meta_fields = apply_filters( 'admin_search_meta_queries', array( '_wp_attachment_image_alt' ), $wp_query -> get( 'post_type' ) );
 
-		// If meta queries have been added, build WHERE query
+		// If meta queries have been added, build WHERE query for meta fields
 		if ( is_array( $meta_fields ) && ! empty( $meta_fields ) ) {
 			if ( ! empty( $fields ) ) {
 				$where .= ' OR ';
@@ -219,31 +220,44 @@ function admin_search_extend_query(  $where, $wp_query  ) {
 			}
 		}
 
+		$taxonomies = apply_filters( 'admin_search_taxonomies', array(), $wp_query -> get( 'post_type' ) );
+
+		if ( is_array( $meta_fields ) && ! empty( $meta_fields ) ) {
+			foreach ( $taxonomies as $taxonomy ) { 
+				// Add taxonomy query
+				$where .= ' OR ' . admin_search_prepare_query( $wpdb -> terms, 'name', $s ) . " AND {$wpdb -> term_taxonomy}.taxonomy = '{$taxonomy}'";
+			}
+		}
+
 		$where .= ')';
 	}
 
 	return $where;
-
 }
 
-
 /*
- *	Enable 'as_s' for meta queries
+ *	Enable 'as_s' for meta queries and taxonomy queries
  */
 add_filter( 'posts_where', 'admin_search_extend_query', 10, 2 );
-add_filter( 'posts_join', function(  string $sql, WP_Query $query  ) {
+add_filter( 'posts_join', function( string $sql, WP_Query $query ) {
 
 	global $wpdb;
 
 	if ( $query -> get( 'as_s' ) ) {
+		// Join postmeta for meta fields
 		$sql .= " LEFT JOIN {$wpdb -> postmeta} ON {$wpdb -> posts}.ID = {$wpdb -> postmeta}.post_id ";
+
+		// Join taxonomy tables for taxonomy fields
+		$sql .= " LEFT JOIN {$wpdb -> term_relationships} ON ({$wpdb -> posts}.ID = {$wpdb -> term_relationships}.object_id)
+				  LEFT JOIN {$wpdb -> term_taxonomy} ON ({$wpdb -> term_relationships}.term_taxonomy_id = {$wpdb -> term_taxonomy}.term_taxonomy_id)
+				  LEFT JOIN {$wpdb -> terms} ON ({$wpdb -> term_taxonomy}.term_id = {$wpdb -> terms}.term_id) ";
 	}
 
 	return $sql;
 
 }, 10, 2 );
 
-add_filter( 'posts_distinct', function(  string $sql, WP_Query $query  ) {
+add_filter( 'posts_distinct', function( string $sql, WP_Query $query ) {
 
 	if ( $query -> get( 'as_s' ) ) {
 		return 'DISTINCT';
@@ -662,7 +676,7 @@ function admin_search_ajax() {
 			// Define source information
 			$results[ 'comment' ][ 'post_type' ] = array(
 				'name'	=>	'comment',
-				'label'	=>	__( 'Comments' ),
+				'label'	=>	__( 'Comments', 'admin-search' ),
 				'search_url' => add_query_arg( array(
 					's' => $q
 				), get_admin_url( '', 'edit-comments.php' ) )
@@ -795,7 +809,7 @@ function admin_search_ajax() {
 			if ( isset( $results[ 'user' ] ) ) {
 				$results[ 'user' ][ 'post_type' ] = array(
 					'name'			=>	'user',
-					'label'			=>	__( 'Users' ),
+					'label'			=>	__( 'Users', 'admin-search' ),
 					'search_url'	=> add_query_arg( array(
 						's' => $q
 					), get_admin_url( '', 'users.php' ) )
