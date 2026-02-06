@@ -3,9 +3,9 @@ Contributors: andrewstichbury
 Donate link: https://www.buymeacoffee.com/andrewstichbury
 Tags: advanced, admin, search
 Requires at least: 4.9.2
-Tested up to: 6.7
+Tested up to: 6.9.1
 Requires PHP: 5.2
-Stable tag: 1.4.1
+Stable tag: 1.4.2
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -111,6 +111,9 @@ Modify the search results after a search has initiated
 	}, 10, 2 );
 
 == Changelog ==
+
+= 1.4.2 =
+* Fixed an issue where pasting text from some sources may also paste the style
 
 = 1.4.1 =
 * Tested up to 6.7

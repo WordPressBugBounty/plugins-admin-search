@@ -850,4 +850,14 @@ jQuery( document ).ready( function( $ ) {
 			value : decodeURI( $( this ).attr( 'href' ).replace( '#admin-search=', '' ) )
 		} );
 	} );
+
+
+	// Don't paste with style
+	$( document ).on( 'paste', '#admin-search-input-field-value', function( event ) {
+		event.preventDefault();
+
+		const text = ( event.originalEvent.clipboardData || window.clipboardData ).getData( 'text' );
+
+		document.execCommand( 'insertText', false, text.trim() );
+	} );
 });

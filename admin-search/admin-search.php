@@ -3,7 +3,7 @@
  *	Plugin Name:		Admin Search
  *	Plugin URL:			http://www.andrewstichbury.com
  *	Description:		Admin Search adds a simple, easy-to-use interface to your WordPress admin site that gives you and your WordPress admin users the ability to search across multiple post types, taxonomies and more in one place.
- *	Version:			1.4.1
+ *	Version:			1.4.2
  *	Requires at least:	4.9.2
  *	Requires PHP:		5.2
  *	Author:				Andrew Stichbury
@@ -24,8 +24,8 @@ if ( ! defined( 'WPINC' ) ) {
 
 
 
-define( 'ADMIN_SEARCH_VERSION', '1.4.1' );
-define( 'ADMIN_SEARCH_VERSION_INT', 141 );
+define( 'ADMIN_SEARCH_VERSION', '1.4.2' );
+define( 'ADMIN_SEARCH_VERSION_INT', 142 );
 
 
 

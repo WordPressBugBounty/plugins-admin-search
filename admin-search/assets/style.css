@@ -67,6 +67,7 @@
 #admin-search-container {
 	position: relative;
 	width: 100%;
+	overflow: hidden;
 	background: var(--as-color-background);
 	color: var(--as-color-primary);
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
@@ -88,7 +89,7 @@
 	#admin-search-container {
 		position: absolute;
 		max-width: 673px;
-		border-radius: 8px;
+		border-radius: 32px;
 		box-shadow: 0 8px 16px rgb(0 0 0 / 40%), inset 0 0 0 1px var(--as-color-background), inset 0 0 0 2px rgb(var(--as-color-primary-rgb) / 12%);
 	}
 
@@ -163,10 +164,10 @@
 @media (min-width: 783px) {
 
 	#admin-search-input-field {
-		height: 30px;
-		margin: 17px 0;
-		font-size: 1.5em;
-		line-height: 30px;
+		height: 28px;
+		margin: 18px 0;
+		font-size: 1.7142857143em;
+		line-height: 28px;
 	}
 
 }
@@ -341,7 +342,7 @@ body.mobile #admin-search-modal.admin-search-has-value:not(.admin-search-results
 	overflow: hidden;
 	-webkit-transition: height var(--as-transition-speed) ease;
 	transition: height var(--as-transition-speed) ease;
-	border-radius: 0 0 6px 6px;
+	border-radius: 0 0 32px 32px;
 }
 
 @media (min-width: 783px) {
@@ -697,7 +698,7 @@ body.mobile #admin-search-modal.admin-search-has-value:not(.admin-search-results
 	.admin-search-result {
 		margin: 0 8px;
 		padding: 10px 16px;
-		border-radius: 6px;
+		border-radius: 16px;
 	}
 
 }
@@ -817,7 +818,7 @@ body.mobile #admin-search-modal.admin-search-has-value:not(.admin-search-results
 	width: 100%;
 	height: 100%;
 	display: block;
-	border-radius: 6px;
+	border-radius: 8px;
 	object-fit: cover;
 	object-position: center;
 }
