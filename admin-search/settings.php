@@ -91,6 +91,19 @@ function admin_search_add_settings_page() {
 		return $text;
 	}, 15 );
 
+	// Ensure the plugin stylesheet (which contains the post-type toggle CSS) is
+	// enqueued on the settings page regardless of whether the admin bar is visible.
+	add_action( 'admin_enqueue_scripts', function( $hook_suffix ) {
+		if ( $hook_suffix === 'settings_page_admin-search' ) {
+			wp_enqueue_style(
+				'admin-search-stylesheet',
+				plugin_dir_url( __FILE__ ) . 'assets/style.css',
+				array(),
+				ADMIN_SEARCH_VERSION
+			);
+		}
+	} );
+
 }
 
 add_action( 'admin_menu', 'admin_search_add_settings_page' );
@@ -104,11 +117,15 @@ function admin_search_setting( $name, $fallback = NULL ) {
 	$default_settings = array(
 		'display_on_keypress'		=>	true,
 		'autosearch'				=>	true,
-		'query_highlight'			=>	false,
+		'highlight_query'			=>	false,
 		'show_when_viewing_site'	=>	false,
 		'result_previews'			=>	false,
 		'show_suggestions'			=>	false,
-		'post_types'				=>	array( 'post', 'page', 'attachment' ),
+		'post_types'				=>	array(
+			'post'       => array( 'body' ),
+			'page'       => array( 'body' ),
+			'attachment' => array( 'body', '_wp_attachment_image_alt' ),
+		),
 		'taxonomies'				=>	array( ),
 		'include_admin_pages'		=>	true,
 		'include_comments'			=>	false,
@@ -126,6 +143,25 @@ function admin_search_setting( $name, $fallback = NULL ) {
 	foreach ( $default_settings as $default_setting_name => $default_setting_value ) {
 		if ( ! isset( $settings[ $default_setting_name ] ) ) {
 			$settings[ $default_setting_name ] = $default_setting_value;
+		}
+	}
+
+	// Migrate old flat-array post_types format (list of slug strings) to the new
+	// associative format (slug => [enabled field names]).  This runs every call so
+	// that sites upgrading from v1.4.x automatically get the new structure without
+	// needing an explicit database migration.
+	if ( isset( $settings['post_types'] ) && is_array( $settings['post_types'] ) ) {
+		$first = reset( $settings['post_types'] );
+		if ( ! is_array( $first ) ) {
+			$migrated = array();
+			foreach ( $settings['post_types'] as $slug ) {
+				if ( is_string( $slug ) ) {
+					$migrated[ $slug ] = ( $slug === 'attachment' )
+						? array( 'body', '_wp_attachment_image_alt' )
+						: array( 'body' );
+				}
+			}
+			$settings['post_types'] = $migrated;
 		}
 	}
 
@@ -291,7 +327,7 @@ function admin_search_settings_page_link( $links ) {
 
 }
 
-add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), 'admin_search_settings_page_link' );
+add_filter( 'plugin_action_links_' . plugin_basename( plugin_dir_path( __FILE__ ) . 'admin-search.php' ), 'admin_search_settings_page_link' );
 
 
 
@@ -382,17 +418,42 @@ function admin_search_sanitize_setting_values( $input ) {
 		$input[ 'show_suggestions' ] = 0;
 	}
 
-	// Validate 'post_types' setting
-	if ( isset( $input[ 'post_types' ] ) ) {
+	// Validate 'post_types' setting — new format: slug => [enabled field names]
+	// A post type is only included when its toggle is checked (the 'enabled' sub-key
+	// is present in the submitted data).  Unchecked toggles produce no sub-key at all.
+	if ( isset( $input[ 'post_types' ] ) && is_array( $input[ 'post_types' ] ) ) {
 		$post_types = array();
 
-		foreach ( $input[ 'post_types' ] as $post_type ) {
-			if ( post_type_exists( $post_type ) ) {
-				$post_types[] = $post_type;
+		foreach ( $input[ 'post_types' ] as $slug => $pt_data ) {
+			$slug = sanitize_key( $slug );
+
+			if ( ! post_type_exists( $slug ) ) {
+				continue;
 			}
+
+			// Toggle must be on
+			if ( ! isset( $pt_data[ 'enabled' ] ) ) {
+				continue;
+			}
+
+			$fields = array();
+
+			if ( isset( $pt_data[ 'fields' ] ) && is_array( $pt_data[ 'fields' ] ) ) {
+				foreach ( $pt_data[ 'fields' ] as $field ) {
+					if ( $field === 'body' ) {
+						$fields[] = 'body';
+					} elseif ( preg_match( '/^[a-zA-Z0-9_\-]+$/', $field ) ) {
+						$fields[] = sanitize_text_field( $field );
+					}
+				}
+			}
+
+			$post_types[ $slug ] = array_unique( $fields );
 		}
 
 		$input[ 'post_types' ] = $post_types;
+	} else {
+		$input[ 'post_types' ] = array();
 	}
 
 	// Validate 'taxonomies' setting
@@ -640,25 +701,207 @@ function admin_search_section_sources_text() {
 
 
 /*
+ *	Return all distinct meta keys that exist in the database for a given post type,
+ *	excluding WordPress internal housekeeping keys that are never useful to search.
+ */
+function admin_search_get_post_type_meta_keys( $post_type ) {
+
+	global $wpdb;
+
+	$excluded = array(
+		'_edit_lock', '_edit_last',
+		'_wp_trash_meta_status', '_wp_trash_meta_time',
+		'_wp_desired_post_slug', '_wp_old_date', '_wp_old_slug',
+	);
+
+	$keys = $wpdb->get_col( $wpdb->prepare(
+		"SELECT DISTINCT pm.meta_key
+		 FROM {$wpdb->postmeta} pm
+		 INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+		 WHERE p.post_type = %s
+		   AND pm.meta_key NOT LIKE '\_%%'
+		 ORDER BY pm.meta_key",
+		$post_type
+	) );
+
+	return array_values( array_diff( $keys ?: array(), $excluded ) );
+
+}
+
+
+/*
  *	Set up 'post_types' setting
  */
 function admin_search_setting_post_types() {
 
-	echo "<div id='admin_search_plugin_setting_post_types'>";
+	$current = admin_search_setting( 'post_types', array() );
 
-	foreach ( get_post_types( array(), 'object' ) as $post_type ) {
-		if ( $post_type -> {'public'} || $post_type -> name === 'wp_block' ) {
-			echo "<p><label><input type='checkbox' name='admin_search_settings[post_types][]' value='" . esc_attr( $post_type -> name ) . "'";
+	echo '<div id="admin_search_plugin_setting_post_types">';
 
-			if ( in_array( $post_type -> name, admin_search_setting( 'post_types', array() ) ) ) {
-				echo " checked";
-			}
+	// WordPress internal / system post types that should never appear in the
+	// settings list.  Exposed via a filter so plugin/theme authors can adjust.
+	//
+	// We intentionally exclude FSE types (wp_template, wp_template_part, …) even
+	// though they have show_ui = true, because they are low-level site-building
+	// primitives rather than content a site admin would want to search for.
+	$_excluded_pt = apply_filters( 'admin_search_excluded_post_types', array(
+		'revision',            // post revisions — never directly editable
+		'nav_menu_item',       // navigation menu entries
+		'custom_css',          // Customizer custom CSS
+		'customize_changeset', // Customizer draft changesets
+		'oembed_cache',        // oEmbed response cache
+		'user_request',        // GDPR data erasure requests
+		'wp_template',         // FSE site templates
+		'wp_template_part',    // FSE template parts
+		'wp_global_styles',    // FSE global styles
+		'wp_navigation',       // block-based nav menus
+		'wp_font_family',      // Font Library families
+		'wp_font_face',        // Font Library faces
+	) );
 
-			echo "> " . esc_html( $post_type -> label ) . "</label></p>";
+	// Use show_ui rather than public: this is an admin tool, so the right criterion
+	// is whether a post type has an edit screen — not whether it's front-end queryable.
+	// This naturally includes non-public admin-only CPTs (e.g. internal CRM types)
+	// and wp_block (Patterns) without needing special-cases.
+	foreach ( get_post_types( array( 'show_ui' => true ), 'object' ) as $post_type ) {
+
+		if ( in_array( $post_type->name, $_excluded_pt, true ) ) {
+			continue;
 		}
+
+		$slug           = $post_type->name;
+		$label          = $post_type->label;
+		$is_enabled     = array_key_exists( $slug, $current );
+		$enabled_fields = $is_enabled ? (array) $current[ $slug ] : array();
+
+		// Merge meta keys from DB with any saved keys that may no longer be in the DB
+		// (e.g. all posts with that meta deleted) so saved values are still shown.
+		$db_meta_keys    = admin_search_get_post_type_meta_keys( $slug );
+		$saved_meta_keys = array_values( array_filter( $enabled_fields, function ( $f ) {
+			return $f !== 'body';
+		} ) );
+		$all_meta_keys = array_unique( array_merge( $db_meta_keys, $saved_meta_keys ) );
+		sort( $all_meta_keys );
+
+		$toggle_id = 'as-pt-toggle-' . esc_attr( $slug );
+
+		// Build the post type icon HTML.
+		// menu_icon can be a dashicons class, a data URI, a full URL, or empty.
+		$raw_icon = ! empty( $post_type->menu_icon ) ? $post_type->menu_icon : '';
+		if ( empty( $raw_icon ) || $raw_icon === 'none' ) {
+			$icon_defaults = array(
+				'post'       => 'dashicons-admin-post',
+				'page'       => 'dashicons-admin-page',
+				'attachment' => 'dashicons-admin-media',
+				'wp_block'   => 'dashicons-block-default',
+			);
+			$raw_icon = isset( $icon_defaults[ $slug ] ) ? $icon_defaults[ $slug ] : 'dashicons-admin-post';
+		}
+		if ( strpos( $raw_icon, 'dashicons-' ) === 0 ) {
+			$icon_html = '<span class="dashicons ' . esc_attr( $raw_icon ) . ' as-pt-icon" aria-hidden="true"></span>';
+		} elseif ( strpos( $raw_icon, 'data:' ) === 0 ) {
+			$icon_html = '<span class="as-pt-icon as-pt-icon-img" aria-hidden="true" style="background-image:url(\'' . esc_attr( $raw_icon ) . '\')"></span>';
+		} else {
+			$icon_html = '<span class="as-pt-icon as-pt-icon-img" aria-hidden="true" style="background-image:url(\'' . esc_url( $raw_icon ) . '\')"></span>';
+		}
+
+		echo '<div class="as-pt-item">';
+
+		// Hidden checkbox drives both the visual toggle and the CSS expand/collapse
+		echo '<input type="checkbox"'
+			. ' id="' . $toggle_id . '"'
+			. ' class="as-pt-toggle"'
+			. ' name="admin_search_settings[post_types][' . esc_attr( $slug ) . '][enabled]"'
+			. ' value="1"'
+			. ( $is_enabled ? ' checked' : '' )
+			. '>';
+
+		// Row label: icon + post type name on the left, visual toggle track on the right
+		echo '<label for="' . $toggle_id . '" class="as-pt-label">'
+			. $icon_html
+			. '<span class="as-pt-name">' . esc_html( $label ) . '</span>'
+			. '<span class="as-pt-track" aria-hidden="true"></span>'
+			. '</label>';
+
+		// Fields panel — CSS shows/hides this via :checked ~ .as-pt-fields
+		echo '<div class="as-pt-fields">';
+		echo '<div class="as-field-list">';
+
+		// Body (post_content + post_excerpt)
+		$body_id  = 'as-field-' . esc_attr( $slug ) . '-body';
+		echo '<label class="as-field-item" for="' . $body_id . '">'
+			. '<input type="checkbox"'
+			. ' id="' . $body_id . '"'
+			. ' class="as-field-toggle"'
+			. ' name="admin_search_settings[post_types][' . esc_attr( $slug ) . '][fields][]"'
+			. ' value="body"'
+			. ( in_array( 'body', $enabled_fields ) ? ' checked' : '' )
+			. '>'
+			. '<span class="as-field-name">' . esc_html__( 'Body', 'admin-search' ) . '</span>'
+			. '<span class="as-field-hint">' . esc_html__( 'Content and excerpt', 'admin-search' ) . '</span>'
+			. '<span class="as-field-track" aria-hidden="true"></span>'
+			. '</label>';
+
+		// Custom / meta fields
+		foreach ( $all_meta_keys as $meta_key ) {
+			// Sanitise the meta key to a safe string for use in an HTML id attribute
+			$safe_suffix = preg_replace( '/[^a-z0-9_-]/', '-', strtolower( $meta_key ) );
+			$field_id    = 'as-field-' . esc_attr( $slug ) . '-' . $safe_suffix;
+			$display     = ltrim( $meta_key, '_' ); // strip leading _ for the readable label
+
+			echo '<label class="as-field-item" for="' . $field_id . '">'
+				. '<input type="checkbox"'
+				. ' id="' . $field_id . '"'
+				. ' class="as-field-toggle"'
+				. ' name="admin_search_settings[post_types][' . esc_attr( $slug ) . '][fields][]"'
+				. ' value="' . esc_attr( $meta_key ) . '"'
+				. ( in_array( $meta_key, $enabled_fields ) ? ' checked' : '' )
+				. '>'
+				. '<span class="as-field-name">' . esc_html( $display ) . '</span>'
+				. '<span class="as-field-hint as-field-hint-meta">' . esc_html( $meta_key ) . '</span>'
+				. '<span class="as-field-track" aria-hidden="true"></span>'
+				. '</label>';
+		}
+
+		// Taxonomy toggles — allows filtering posts by category, tag, or any custom taxonomy
+		$pt_taxonomies    = get_object_taxonomies( $slug, 'objects' );
+		$public_taxonomies = array_filter( $pt_taxonomies, function ( $tax ) {
+			return $tax->public || ( isset( $tax->show_ui ) && $tax->show_ui );
+		} );
+
+		if ( ! empty( $public_taxonomies ) ) {
+			echo '<div class="as-field-section-label">' . esc_html__( 'Taxonomies', 'admin-search' ) . '</div>';
+
+			foreach ( $public_taxonomies as $tax_slug => $tax_obj ) {
+				$safe_suffix = preg_replace( '/[^a-z0-9_-]/', '-', strtolower( $tax_slug ) );
+				$field_id    = 'as-field-' . esc_attr( $slug ) . '-tax-' . $safe_suffix;
+
+				echo '<label class="as-field-item" for="' . $field_id . '">'
+					. '<input type="checkbox"'
+					. ' id="' . $field_id . '"'
+					. ' class="as-field-toggle"'
+					. ' name="admin_search_settings[post_types][' . esc_attr( $slug ) . '][fields][]"'
+					. ' value="' . esc_attr( $tax_slug ) . '"'
+					. ( in_array( $tax_slug, $enabled_fields ) ? ' checked' : '' )
+					. '>'
+					. '<span class="as-field-name">' . esc_html( $tax_obj->label ) . '</span>'
+					. '<span class="as-field-hint as-field-hint-taxonomy">' . esc_html( $tax_slug ) . '</span>'
+					. '<span class="as-field-track" aria-hidden="true"></span>'
+					. '</label>';
+			}
+		}
+
+		echo '</div>'; // .as-field-list
+
+		echo '<p class="description as-field-note">'
+			. esc_html__( 'Title, slug, and ID are always searchable. With no fields enabled, posts are only findable by title, slug, ID, author, or date.', 'admin-search' )
+			. '</p>';
+
+		echo '</div>'; // .as-pt-fields
+		echo '</div>'; // .as-pt-item
 	}
 
-	echo "</div>";
+	echo '</div>'; // #admin_search_plugin_setting_post_types
 
 }
 
@@ -766,3 +1009,74 @@ function admin_search_setting_external_websites() {
 	), esc_html__( 'Example: Add [code]https://wordpress.org/search/%q%[/code] to display a link to the WordPress.org search pre-populated with your search query.', 'admin-search' ) ) . "</p></div>";
 
 }
+
+
+
+/*
+ *	Apply per-post-type field settings to search queries.
+ *
+ *	These filters run at priority 100 so that they override any other plugin that
+ *	has added fields at the default priority (10).  When a post type has been
+ *	explicitly configured in Admin Search settings the stored configuration is
+ *	authoritative; when it hasn't been configured the filters are a no-op.
+ */
+add_filter( 'admin_search_fields', function( $fields, $post_type ) {
+
+	$pt_settings = admin_search_setting( 'post_types', array() );
+
+	if ( ! array_key_exists( $post_type, $pt_settings ) ) {
+		return $fields;
+	}
+
+	$enabled = (array) $pt_settings[ $post_type ];
+
+	// Title and slug are always included regardless of user configuration
+	$result = array( 'post_title', 'post_name' );
+
+	// Body (content + excerpt) is opt-in
+	if ( in_array( 'body', $enabled ) ) {
+		$result[] = 'post_content';
+		$result[] = 'post_excerpt';
+	}
+
+	return $result;
+
+}, 100, 2 );
+
+add_filter( 'admin_search_meta_queries', function( $meta_fields, $post_type ) {
+
+	$pt_settings = admin_search_setting( 'post_types', array() );
+
+	if ( ! array_key_exists( $post_type, $pt_settings ) ) {
+		return $meta_fields;
+	}
+
+	$enabled = (array) $pt_settings[ $post_type ];
+
+	// Return only the explicitly enabled meta keys (everything that isn't 'body' or a taxonomy slug)
+	return array_values( array_filter( $enabled, function( $f ) {
+		return $f !== 'body' && ! taxonomy_exists( $f );
+	} ) );
+
+}, 100, 2 );
+
+/*
+ *	Feed the per-post-type enabled taxonomy list into the field-level taxonomy search.
+ *	Runs at priority 100 to override any lower-priority defaults.
+ */
+add_filter( 'admin_search_taxonomies', function( $taxonomies, $post_type ) {
+
+	$pt_settings = admin_search_setting( 'post_types', array() );
+
+	if ( ! array_key_exists( $post_type, $pt_settings ) ) {
+		return $taxonomies;
+	}
+
+	$enabled = (array) $pt_settings[ $post_type ];
+
+	// Return only the taxonomy slugs stored in the enabled fields list
+	return array_values( array_filter( $enabled, function( $f ) {
+		return $f !== 'body' && taxonomy_exists( $f );
+	} ) );
+
+}, 100, 2 );

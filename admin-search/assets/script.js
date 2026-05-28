@@ -114,6 +114,7 @@ function admin_search_submit_form() {
 	// Perform HTTP GET request to get results
 	jQuery.get( admin_search.ajax_url, {
 		action : 'admin_search_ajax',
+		_ajax_nonce : admin_search.nonce,
 		q : q
 	}, function( response ) {
 		// If there's an error, add it to console and look no further
@@ -730,6 +731,7 @@ jQuery( document ).ready( function( $ ) {
         // Perform HTTP GET request to get paginated results
 		$.get( admin_search.ajax_url, {
 			action : 'admin_search_ajax',
+			_ajax_nonce : admin_search.nonce,
 			q : q,
 			source : source,
 			paged : paged
@@ -801,7 +803,7 @@ jQuery( document ).ready( function( $ ) {
 
 
 		// If the window is small, ignore this function
-		if ( ! $( window ).width() > 783 ) {
+		if ( $( window ).width() <= 783 ) {
 			return false;
 		}
 

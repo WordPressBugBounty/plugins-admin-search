@@ -507,19 +507,18 @@ body.mobile #admin-search-modal.admin-search-has-value:not(.admin-search-results
 .admin-search-result-group-title {
 	position: sticky;
 	top: 0;
-	height: 46px;
-	margin: 0 2px;
-	padding: 16px 8px 10px;
-	background: rgb(var(--as-color-background-rgb) / 90%);
-	-webkit-backdrop-filter: blur(12px);
-	backdrop-filter: blur(12px);
+	margin: 0 2px -20px;
+	padding: 0 8px 16px;
+	background: linear-gradient(rgb(var(--as-color-background-rgb) / 100%), rgb(var(--as-color-background-rgb) / 0%));
 	box-sizing: border-box;
 	color: rgb(var(--as-color-primary-rgb) / var(--as-opacity-secondary));
-	font-weight: 500;
+	font-weight: 600;
+	line-height: 32px;
 	-webkit-touch-callout: none;
 	-webkit-user-select: none;
 	user-select: none;
 	z-index: 1;
+	pointer-events: none;
 }
 
 .admin-search-result-group-title::before {
@@ -535,7 +534,9 @@ body.mobile #admin-search-modal.admin-search-has-value:not(.admin-search-results
 @media (min-width: 783px) {
 
 	.admin-search-result-group-title {
-		padding: 16px 22px 10px 22px;
+		line-height: 48px;
+		padding: 0 22px 24px;
+		margin-bottom: -32px;
 	}
 
 	.admin-search-result-group-title::before {
@@ -698,7 +699,7 @@ body.mobile #admin-search-modal.admin-search-has-value:not(.admin-search-results
 	.admin-search-result {
 		margin: 0 8px;
 		padding: 10px 16px;
-		border-radius: 16px;
+		border-radius: 24px;
 	}
 
 }
@@ -915,5 +916,202 @@ body.mobile #admin-search-modal.admin-search-has-value:not(.admin-search-results
 	height: 24px;
 	display: block;
 	fill: rgb(var(--as-color-primary-rgb) / var(--as-opacity-secondary));
+}
+
+
+/* ── Settings page: post-type toggle list ───────────────────────────────────
+   All rules are scoped to the .settings_page_admin-search body class that
+   WordPress adds to the settings page, so they cannot bleed into the search
+   UI or any other admin screen.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Each post type is a white card with a 4px gap below it */
+.settings_page_admin-search .as-pt-item {
+	background: #fff;
+	border-radius: 4px;
+	padding: 0 14px;
+	margin-bottom: 4px;
+}
+
+/* Visually-hidden checkboxes — still focusable and still submit their value */
+.settings_page_admin-search .as-pt-toggle,
+.settings_page_admin-search .as-field-toggle {
+	position: absolute;
+	opacity: 0;
+	width: 1px;
+	height: 1px;
+	pointer-events: none;
+}
+
+/* Post-type row label: icon + name flex-grow + toggle track */
+.settings_page_admin-search .as-pt-label {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	cursor: pointer;
+	padding: 16px 0;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+/* Post type icon — dashicon or image sprite */
+.settings_page_admin-search .as-pt-icon {
+	width: 20px;
+	height: 20px;
+	font-size: 20px;
+	line-height: 1;
+	flex-shrink: 0;
+	color: #3c434a;
+}
+
+.settings_page_admin-search .as-pt-icon-img {
+	background-size: 20px 20px;
+	background-repeat: no-repeat;
+	background-position: center;
+}
+
+.settings_page_admin-search .as-pt-name {
+	flex: 1;
+	font-size: 13px;
+	font-weight: 500;
+	color: #3c434a;
+}
+
+/* Shared toggle track (used by both post-type and field toggles) */
+.settings_page_admin-search .as-pt-track,
+.settings_page_admin-search .as-field-track {
+	width: 36px;
+	height: 20px;
+	background: #c3c4c7;
+	border-radius: 10px;
+	position: relative;
+	flex-shrink: 0;
+	transition: background .15s ease;
+}
+
+.settings_page_admin-search .as-pt-track::after,
+.settings_page_admin-search .as-field-track::after {
+	content: '';
+	position: absolute;
+	width: 16px;
+	height: 16px;
+	background: #fff;
+	border-radius: 50%;
+	top: 2px;
+	left: 2px;
+	transition: left .15s ease;
+	box-shadow: 0 1px 2px rgba(0,0,0,.25);
+}
+
+/* Checked — post-type toggle */
+.settings_page_admin-search .as-pt-toggle:checked + .as-pt-label .as-pt-track {
+	background: #2271b1;
+}
+
+.settings_page_admin-search .as-pt-toggle:checked + .as-pt-label .as-pt-track::after {
+	left: 18px;
+}
+
+/* Focus ring — post-type toggle */
+.settings_page_admin-search .as-pt-toggle:focus-visible + .as-pt-label .as-pt-track {
+	outline: 2px solid #2271b1;
+	outline-offset: 2px;
+}
+
+/* Fields panel — collapsed by default, revealed by the :checked ~ combinator.
+   A subtle top rule separates it from the post-type header row. */
+.settings_page_admin-search .as-pt-fields {
+	display: none;
+	padding: 0 0 12px;
+	margin: -8px 0 0;
+}
+
+.settings_page_admin-search .as-pt-toggle:checked ~ .as-pt-fields {
+	display: block;
+}
+
+/* Field list and items */
+.settings_page_admin-search .as-field-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+/* Layout: [name flex-grow] [hint] [toggle track] */
+.settings_page_admin-search .as-field-item {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	cursor: pointer;
+	padding: 5px 4px;
+	border-radius: 4px;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.settings_page_admin-search .as-field-item:hover {
+	background: rgba(0,0,0,.04);
+}
+
+/* Field toggle — slightly smaller than the post-type toggle.
+   NOTE: HTML order is input → name → hint → track; ~ (general sibling) is
+   used instead of + because name and hint sit between input and track. */
+.settings_page_admin-search .as-field-track {
+	width: 28px;
+	height: 16px;
+	border-radius: 8px;
+}
+
+.settings_page_admin-search .as-field-track::after {
+	width: 12px;
+	height: 12px;
+	top: 2px;
+	left: 2px;
+}
+
+.settings_page_admin-search .as-field-toggle:checked ~ .as-field-track {
+	background: #2271b1;
+}
+
+.settings_page_admin-search .as-field-toggle:checked ~ .as-field-track::after {
+	left: 14px;
+}
+
+.settings_page_admin-search .as-field-toggle:focus-visible ~ .as-field-track {
+	outline: 2px solid #2271b1;
+	outline-offset: 2px;
+}
+
+/* Field text */
+.settings_page_admin-search .as-field-name {
+	flex: 1;
+	font-size: 13px;
+	color: #1d2327;
+}
+
+.settings_page_admin-search .as-field-hint {
+	font-size: 12px;
+	color: #787c82;
+}
+
+/* Taxonomy section label — subtle divider between meta fields and taxonomy toggles */
+.settings_page_admin-search .as-field-section-label {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: .04em;
+	color: #646970;
+	padding: 16px 4px 8px;
+    margin-top: 8px;
+	border-top: 1px solid #f0f0f1;
+}
+
+.settings_page_admin-search .as-field-hint-meta {
+	font-family: Consolas, Monaco, monospace;
+	font-size: 11px;
+}
+
+.settings_page_admin-search .as-field-note {
+	margin: 2px 4px 0;
 }
 

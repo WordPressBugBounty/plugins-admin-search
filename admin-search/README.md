@@ -3,9 +3,9 @@ Contributors: andrewstichbury
 Donate link: https://www.buymeacoffee.com/andrewstichbury
 Tags: advanced, admin, search
 Requires at least: 4.9.2
-Tested up to: 6.9.1
+Tested up to: 7.0.1
 Requires PHP: 5.2
-Stable tag: 1.4.2
+Stable tag: 1.4.3
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -111,6 +111,12 @@ Modify the search results after a search has initiated
 	}, 10, 2 );
 
 == Changelog ==
+
+= 1.5.0 =
+* New Feature: Choose what fields to search in settings. By default, Admin Search searches post titles and bodies, searches can now be extended to any public custom fields
+* New Feature: Search by taxonomies
+* Extended natural language searches. More date options, including "between 01/01/20 and 01/01/26", "before 01/01/26", "after 01/01/20", "last 2 weeks". These can be combined with query searches such as "corgi facts between 01/01/20 and 01/01/26"
+* Tested on WordPress 7
 
 = 1.4.2 =
 * Fixed an issue where pasting text from some sources may also paste the style

@@ -130,40 +130,31 @@ function admin_search_load_plugin_assets() {
 	}
 
 
-	$inline_script = "var admin_search={site_url:'" . get_site_url() . "',ajax_url:'" . admin_url( 'admin-ajax.php' );
-	$inline_script .= "',display_on_keypress:";
-	$inline_script .= admin_search_setting( 'display_on_keypress' ) ? 'true' : 'false';
-	$inline_script .= ",autosearch:";
-	$inline_script .= admin_search_setting( 'autosearch' ) ? 'true' : 'false';
-	$inline_script .= ",include_admin_pages:";
-	$inline_script .= admin_search_setting( 'include_admin_pages' ) ? 'true' : 'false';
-	$inline_script .= ",show_suggestions:";
-	$inline_script .= admin_search_setting( 'show_suggestions' ) ? 'true' : 'false';
-	$inline_script .= ",strings:" . wp_json_encode( [
-		'confirm_clear_searches' => __( 'This will clear all search history and suggestions will be reset. Are you sure you want to continue?', 'admin-search' )
-	] );
-	$inline_script .= ",menu:" . wp_json_encode( $formatted_menu );
-	$inline_script .= ",admin_pages_label:'" . addslashes( htmlentities( __( 'Admin Pages', 'admin-search' ) ) );
-	$inline_script .= "'";
+	$script_data = array(
+		'site_url'             => get_site_url(),
+		'ajax_url'             => admin_url( 'admin-ajax.php' ),
+		'nonce'                => wp_create_nonce( 'admin-search' ),
+		'display_on_keypress'  => (bool) admin_search_setting( 'display_on_keypress' ),
+		'autosearch'           => (bool) admin_search_setting( 'autosearch' ),
+		'include_admin_pages'  => (bool) admin_search_setting( 'include_admin_pages' ),
+		'show_suggestions'     => (bool) admin_search_setting( 'show_suggestions' ),
+		'strings'              => array(
+			'confirm_clear_searches' => __( 'This will clear all search history and suggestions will be reset. Are you sure you want to continue?', 'admin-search' )
+		),
+		'menu'                 => $formatted_menu,
+		'admin_pages_label'    => __( 'Admin Pages', 'admin-search' ),
+	);
 
 	if ( admin_search_setting( 'show_suggestions' ) ) {
-		$inline_script .= ",top_searches:[";
-
 		global $wpdb;
 
 		$table_name = $wpdb -> prefix . 'admin_search__searches';
 		$top_searches = $wpdb -> get_results( $wpdb -> prepare( "SELECT * FROM {$table_name} ORDER BY LENGTH(query) DESC, occurrences DESC, results DESC LIMIT 100" ) );
 
-		if ( ! empty( $top_searches ) ) {
-			foreach ( $top_searches as $top_search ) {
-				$inline_script .= "'{$top_search -> query}',";
-			}
-		}
-
-		$inline_script .= "]";
+		$script_data[ 'top_searches' ] = ! empty( $top_searches ) ? array_column( $top_searches, 'query' ) : array();
 	}
 
-	$inline_script .= "}";
+	$inline_script = 'var admin_search=' . wp_json_encode( $script_data ) . ';';
 
 	wp_add_inline_script( 'admin-search-script', $inline_script );
 
@@ -351,12 +342,6 @@ function admin_search_ui() {
 	<div class="admin-search-result-group-title">
 
 		{{{data.post_type_title}}}
-
-		<# if ( data.post_type_shortcut ) { #><div class="admin-search-result-group-shortcut">
-
-			<a href="{{{data.post_type_shortcut}}}" title="<?php echo esc_attr( __( 'Advanced search', 'admin-search' ) ) ?>"></a>
-
-		</div><# } #>
 
 	</div>
 

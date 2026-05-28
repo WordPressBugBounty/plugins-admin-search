@@ -3,7 +3,7 @@
  *	Plugin Name:		Admin Search
  *	Plugin URL:			http://www.andrewstichbury.com
  *	Description:		Admin Search adds a simple, easy-to-use interface to your WordPress admin site that gives you and your WordPress admin users the ability to search across multiple post types, taxonomies and more in one place.
- *	Version:			1.4.2
+ *	Version:			1.5.0
  *	Requires at least:	4.9.2
  *	Requires PHP:		5.2
  *	Author:				Andrew Stichbury
@@ -24,8 +24,8 @@ if ( ! defined( 'WPINC' ) ) {
 
 
 
-define( 'ADMIN_SEARCH_VERSION', '1.4.2' );
-define( 'ADMIN_SEARCH_VERSION_INT', 142 );
+define( 'ADMIN_SEARCH_VERSION', '1.5.0' );
+define( 'ADMIN_SEARCH_VERSION_INT', 150 );
 
 
 
@@ -39,14 +39,14 @@ function admin_search_setup() {
 
 	// Only perform setup if not the current version
 	if ( get_option( 'admin_search_version' ) != ADMIN_SEARCH_VERSION_INT ) {
-		add_option( 'admin_search_version', ADMIN_SEARCH_VERSION_INT );
-		
+		update_option( 'admin_search_version', ADMIN_SEARCH_VERSION_INT );
+
 		global $wpdb;
 
 		$table_name = $wpdb -> prefix . 'admin_search__searches';
 
 		// Only create `searches` table if it doesn't exist
-		if ( $wpdb -> get_var( "SHOW TABLES LIKE '%i'", $table_name ) != $table_name ) {
+		if ( $wpdb -> get_var( $wpdb -> prepare( "SHOW TABLES LIKE %s", $table_name ) ) != $table_name ) {
 			$charset_collate = $wpdb -> get_charset_collate();
 
 			$sql = "CREATE TABLE $table_name (
@@ -68,14 +68,6 @@ function admin_search_setup() {
 add_action( 'admin_init', 'admin_search_setup' );
 
 register_activation_hook( __FILE__, 'admin_search_setup' );
-
-
-
-add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), function( $links ) {
-	$links = [ '<a href="' . admin_url( 'options-general.php?page=admin-search' ) . '">' . __( 'Settings', 'admin-search' ) . '</a>' ] + $links;
-
-	return $links;
-} );
 
 
 
